@@ -1,6 +1,9 @@
 package net.antoinecomte.bfi
 
 import scala.util.parsing.combinator.RegexParsers
+import java.io.OutputStream
+import java.io.PrintStream
+import java.io.Reader
 
 object bfParser extends RegexParsers {
   def ignore = """[^<>+-\.,\[\]]""".r
@@ -9,6 +12,7 @@ object bfParser extends RegexParsers {
   def next = ">" ^^ { s => NextOp() }
   def prev = "<" ^^ { s => PrevOp() }
   def out = "." ^^ { s => OutOp() }
+  def in = "," ^^ { s => InOp() }
   def op = (ignore *) ~> (inc | next | prev | dec | out) <~ (ignore *)
   def loop = "[" ~> (op *) <~ "]" ^^ { l => Loop(l) }
   def prog = (op | loop) *
@@ -20,9 +24,10 @@ case class DecOp extends Operation
 case class NextOp extends Operation
 case class PrevOp extends Operation
 case class OutOp extends Operation
+case class InOp extends Operation
 case class Loop(val operations: Seq[Operation]) extends Operation
 
-class BFInterpreter {
+class BFInterpreter(val stdin: Reader = Console.in, val stdout: PrintStream = Console.out) {
   private final val memory = scala.collection.mutable.ArrayBuffer.fill[Byte](30000) { 0 }
   private final var pointer = 0
 
@@ -34,7 +39,8 @@ class BFInterpreter {
         case NextOp() => pointer += 1
         case PrevOp() => if (pointer > 0) pointer -= 1 else pointer = 0
         case Loop(l) => do { run(l) } while (memory(pointer) != 0)
-        case OutOp() => Console.print(memory(pointer).toChar)
+        case OutOp() => stdout.print(memory(pointer).toChar)
+        case InOp() => memory(pointer) = stdin.read().toByte
       }
   }
   def run(program: String) {
